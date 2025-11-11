@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# tfgitsec
-tracks tfsec json results as github security issues.
-=======
 # TfGitSec
 
 TfGitSec is a Python tool that automatically creates and manages GitHub issues from TfSec security scan results. It helps teams track and resolve Terraform security findings by creating comprehensive GitHub issues with full lifecycle management.
@@ -331,4 +327,3 @@ MIT License - see LICENSE file for details
 - CLI interface
 - Configuration support
 - CI/CD integration examples
->>>>>>> 269f83e (add files)
