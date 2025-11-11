@@ -50,8 +50,10 @@ Environment Variables:
     scan_parser = subparsers.add_parser('scan', help='Process TfSec results and manage GitHub issues')
     scan_parser.add_argument('tfsec_file', help='Path to TfSec JSON results file')
     scan_parser.add_argument('--token', help='GitHub personal access token (or set GITHUB_TOKEN)')
-    scan_parser.add_argument('--owner', help='GitHub repository owner (or set GITHUB_OWNER)')
-    scan_parser.add_argument('--repo', help='GitHub repository name (or set GITHUB_REPO)')
+    scan_parser.add_argument('--github-repo', help='GitHub repository in owner/repo format (or set GITHUB_REPO)')
+    scan_parser.add_argument('--ghe-base-url', help='GitHub Enterprise base URL (or set GHE_BASE_URL)')
+    scan_parser.add_argument('--owner', help='GitHub repository owner (DEPRECATED - use --github-repo)')
+    scan_parser.add_argument('--repo', help='GitHub repository name (DEPRECATED - use --github-repo)')
     scan_parser.add_argument('--dry-run', action='store_true', 
                            help='Show what would be done without making changes')
     scan_parser.add_argument('--no-auto-close', action='store_true',

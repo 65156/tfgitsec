@@ -136,7 +136,7 @@ class IssueManager:
                     "issue_number": new_issue.number,
                     "title": new_issue.title,
                     "severity": finding.severity,
-                    "url": f"https://github.com/{self.github.repo_owner}/{self.github.repo_name}/issues/{new_issue.number}"
+                    "url": f"{self.github.web_base_url}/{self.github.repo_owner}/{self.github.repo_name}/issues/{new_issue.number}"
                 })
                 
         except Exception as e:
@@ -164,7 +164,7 @@ class IssueManager:
                     "unique_id": issue.extract_unique_id(),
                     "issue_number": reopened_issue.number,
                     "title": reopened_issue.title,
-                    "url": f"https://github.com/{self.github.repo_owner}/{self.github.repo_name}/issues/{reopened_issue.number}"
+                    "url": f"{self.github.web_base_url}/{self.github.repo_owner}/{self.github.repo_name}/issues/{reopened_issue.number}"
                 })
                 
         except Exception as e:
@@ -200,7 +200,7 @@ class IssueManager:
                         "unique_id": unique_id,
                         "issue_number": closed_issue.number,
                         "title": closed_issue.title,
-                        "url": f"https://github.com/{self.github.repo_owner}/{self.github.repo_name}/issues/{closed_issue.number}"
+                        "url": f"{self.github.web_base_url}/{self.github.repo_owner}/{self.github.repo_name}/issues/{closed_issue.number}"
                     })
                     
             except Exception as e:
