@@ -7,6 +7,7 @@ import json
 import os
 from typing import Optional
 
+from . import __version__
 from .manager import IssueManager, IssueManagerError
 from .github_client import GitHubClient, GitHubAPIError
 from .parser import TfSecParser, TfSecParseError
@@ -43,6 +44,9 @@ Environment Variables:
   GITHUB_REPO        - Repository name
         """
     )
+    
+    # Add version argument
+    parser.add_argument('--version', action='version', version=f'tfgitsec {__version__}')
     
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
