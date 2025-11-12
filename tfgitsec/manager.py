@@ -18,17 +18,19 @@ class IssueManagerError(Exception):
 class IssueManager:
     """Manages the complete lifecycle of security issues"""
     
-    def __init__(self, github_client: GitHubClient, auto_close: bool = True, dry_run: bool = False):
+    def __init__(self, github_client: GitHubClient, auto_close: bool = True, dry_run: bool = False, use_security_advisories: bool = False):
         """Initialize the issue manager
         
         Args:
             github_client: GitHub API client
             auto_close: Whether to automatically close resolved issues
             dry_run: If True, don't make any actual changes to GitHub
+            use_security_advisories: If True, use Security Advisories instead of regular issues
         """
         self.github = github_client
         self.auto_close = auto_close
         self.dry_run = dry_run
+        self.use_security_advisories = use_security_advisories
         self.scan_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
     
     def process_scan_results(self, tfsec_file_path: str) -> Dict[str, Any]:
@@ -41,11 +43,18 @@ class IssueManager:
             findings = TfSecParser.parse_file(tfsec_file_path)
             stats = TfSecParser.validate_findings(findings)
             
-            # Get existing tfsec issues from GitHub
-            existing_issues = self.github.get_tfsec_issues()
-            
-            # Process findings and manage issues
-            result = self._process_findings(findings, existing_issues, stats)
+            if self.use_security_advisories:
+                # Get existing tfsec Security Advisories from GitHub
+                existing_advisories = self.github.get_tfsec_advisories()
+                
+                # Process findings and manage Security Advisories
+                result = self._process_findings_as_advisories(findings, existing_advisories, stats)
+            else:
+                # Get existing tfsec issues from GitHub
+                existing_issues = self.github.get_tfsec_issues()
+                
+                # Process findings and manage issues
+                result = self._process_findings(findings, existing_issues, stats)
             
             return result
             
@@ -239,3 +248,164 @@ class IssueManager:
             "message": "Cleanup functionality not yet implemented",
             "days_old": days_old
         }
+    
+    def _process_findings_as_advisories(self, findings: List[TfSecFinding], 
+                                       existing_advisories: List[Dict[str, Any]], 
+                                       stats: Dict[str, Any]) -> Dict[str, Any]:
+        """Process findings and manage Security Advisory lifecycle"""
+        
+        # Create maps for efficient lookups
+        findings_by_id = {f.unique_id: f for f in findings}
+        existing_by_id = {}
+        
+        # Map existing advisories by unique ID
+        for advisory in existing_advisories:
+            unique_id = self.github._extract_advisory_unique_id(advisory)
+            if unique_id:
+                existing_by_id[unique_id] = advisory
+        
+        # Track actions taken
+        actions = {
+            "created": [],
+            "reopened": [], 
+            "closed": [],
+            "unchanged": [],
+            "errors": []
+        }
+        
+        # Process current findings
+        for finding in findings:
+            unique_id = finding.unique_id
+            existing_advisory = existing_by_id.get(unique_id)
+            
+            if existing_advisory is None:
+                # New finding - create Security Advisory
+                self._create_new_advisory(finding, actions)
+            elif existing_advisory.get("state") == "closed":
+                # Finding reappeared - reopen Security Advisory
+                self._reopen_advisory(existing_advisory, actions)
+            else:
+                # Advisory already exists and is open - leave it
+                actions["unchanged"].append({
+                    "unique_id": unique_id,
+                    "ghsa_id": existing_advisory.get("ghsa_id"),
+                    "title": existing_advisory.get("summary", "")
+                })
+        
+        # Auto-close resolved advisories if enabled
+        if self.auto_close:
+            self._close_resolved_advisories(findings_by_id, existing_by_id, actions)
+        
+        # Build summary
+        summary = {
+            "scan_date": self.scan_date,
+            "dry_run": self.dry_run,
+            "total_findings": len(findings),
+            "scan_stats": stats,
+            "actions": actions,
+            "summary": {
+                "advisories_created": len(actions["created"]),
+                "advisories_reopened": len(actions["reopened"]), 
+                "advisories_closed": len(actions["closed"]),
+                "advisories_unchanged": len(actions["unchanged"]),
+                "errors": len(actions["errors"])
+            },
+            "mode": "security_advisories"
+        }
+        
+        return summary
+    
+    def _create_new_advisory(self, finding: TfSecFinding, actions: Dict[str, List]) -> None:
+        """Create a new GitHub Security Advisory for a finding"""
+        try:
+            advisory_description = IssueFormatter.format_advisory_description(finding)
+            
+            if self.dry_run:
+                actions["created"].append({
+                    "unique_id": finding.unique_id,
+                    "title": finding.issue_title,
+                    "severity": finding.severity,
+                    "dry_run": True
+                })
+            else:
+                new_advisory = self.github.create_advisory_from_finding(finding, advisory_description)
+                ghsa_id = new_advisory.get("ghsa_id", "")
+                actions["created"].append({
+                    "unique_id": finding.unique_id,
+                    "ghsa_id": ghsa_id,
+                    "title": finding.issue_title,
+                    "severity": finding.severity,
+                    "url": new_advisory.get("html_url", self.github.get_advisory_url(ghsa_id))
+                })
+                
+        except Exception as e:
+            actions["errors"].append({
+                "action": "create_advisory",
+                "unique_id": finding.unique_id,
+                "error": str(e)
+            })
+    
+    def _reopen_advisory(self, advisory: Dict[str, Any], actions: Dict[str, List]) -> None:
+        """Reopen a closed Security Advisory that has reappeared"""
+        try:
+            ghsa_id = advisory.get("ghsa_id", "")
+            unique_id = self.github._extract_advisory_unique_id(advisory)
+            
+            if self.dry_run:
+                actions["reopened"].append({
+                    "unique_id": unique_id,
+                    "ghsa_id": ghsa_id,
+                    "title": advisory.get("summary", ""),
+                    "dry_run": True
+                })
+            else:
+                reopened_advisory = self.github.reopen_security_advisory(ghsa_id)
+                actions["reopened"].append({
+                    "unique_id": unique_id,
+                    "ghsa_id": ghsa_id,
+                    "title": reopened_advisory.get("summary", ""),
+                    "url": reopened_advisory.get("html_url", self.github.get_advisory_url(ghsa_id))
+                })
+                
+        except Exception as e:
+            actions["errors"].append({
+                "action": "reopen_advisory", 
+                "ghsa_id": advisory.get("ghsa_id", ""),
+                "error": str(e)
+            })
+    
+    def _close_resolved_advisories(self, findings_by_id: Dict[str, TfSecFinding],
+                                  existing_by_id: Dict[str, Dict[str, Any]], 
+                                  actions: Dict[str, List]) -> None:
+        """Close Security Advisories for findings that no longer exist"""
+        
+        for unique_id, advisory in existing_by_id.items():
+            # Skip if finding still exists or advisory is already closed
+            if unique_id in findings_by_id or advisory.get("state") == "closed":
+                continue
+            
+            try:
+                ghsa_id = advisory.get("ghsa_id", "")
+                
+                if self.dry_run:
+                    actions["closed"].append({
+                        "unique_id": unique_id,
+                        "ghsa_id": ghsa_id,
+                        "title": advisory.get("summary", ""),
+                        "dry_run": True
+                    })
+                else:
+                    closed_advisory = self.github.close_security_advisory(ghsa_id)
+                    actions["closed"].append({
+                        "unique_id": unique_id,
+                        "ghsa_id": ghsa_id,
+                        "title": closed_advisory.get("summary", ""),
+                        "url": closed_advisory.get("html_url", self.github.get_advisory_url(ghsa_id))
+                    })
+                    
+            except Exception as e:
+                actions["errors"].append({
+                    "action": "close_advisory",
+                    "ghsa_id": advisory.get("ghsa_id", ""), 
+                    "error": str(e)
+                })

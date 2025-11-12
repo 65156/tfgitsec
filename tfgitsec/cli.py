@@ -42,12 +42,16 @@ Examples:
   tfgitsec summary results.json
 
   # Test GitHub connection
-  tfgitsec test --github-repo "myorg/myrepo"
+  tfgitsec test --github-repo \"myorg/myrepo\"
+
+  # Debug connection issues
+  tfgitsec test --github-repo \"IBM-Sports/sports-cloud-sandbox-x81js\" --ghe-base-url \"https://github.ibm.com\" --debug
 
 Environment Variables:
   GITHUB_TOKEN       - GitHub personal access token
   GITHUB_REPO        - Repository in owner/repo format
   GHE_BASE_URL       - GitHub Enterprise base URL (optional)
+  TFGITSEC_DEBUG     - Enable debug output (1, true, yes)
         """
     )
     
@@ -74,6 +78,10 @@ Environment Variables:
                            help='Enable verbose output')
     scan_parser.add_argument('--prefix', 
                            help='Prefix to add to unique IDs for environment isolation (e.g., "production-east2")')
+    scan_parser.add_argument('--security-advisory', action='store_true',
+                           help='Create GitHub Security Advisories instead of regular issues (provides better security visibility)')
+    scan_parser.add_argument('--debug', '-d', action='store_true',
+                           help='Enable debug output for troubleshooting connection issues')
     
     # Summary command 
     summary_parser = subparsers.add_parser('summary', help='Generate scan summary without managing issues')
@@ -160,50 +168,99 @@ def print_scan_results(result: dict, output_format: str = 'text', verbose: bool 
     
     # Summary stats
     summary = result['summary']
-    print(f"\n📋 Action Summary:")
-    print(f"  ✅ Issues Created: {summary['issues_created']}")
-    print(f"  🔄 Issues Reopened: {summary['issues_reopened']}")
-    print(f"  ❌ Issues Closed: {summary['issues_closed']}")
-    print(f"  ⏸️  Issues Unchanged: {summary['issues_unchanged']}")
+    mode = result.get('mode', 'issues')
+    
+    if mode == 'security_advisories':
+        print(f"\n📋 Action Summary:")
+        print(f"  ✅ Advisories Created: {summary.get('advisories_created', summary.get('issues_created', 0))}")
+        print(f"  🔄 Advisories Reopened: {summary.get('advisories_reopened', summary.get('issues_reopened', 0))}")
+        print(f"  ❌ Advisories Closed: {summary.get('advisories_closed', summary.get('issues_closed', 0))}")
+        print(f"  ⏸️  Advisories Unchanged: {summary.get('advisories_unchanged', summary.get('issues_unchanged', 0))}")
+    else:
+        print(f"\n📋 Action Summary:")
+        print(f"  ✅ Issues Created: {summary['issues_created']}")
+        print(f"  🔄 Issues Reopened: {summary['issues_reopened']}")
+        print(f"  ❌ Issues Closed: {summary['issues_closed']}")
+        print(f"  ⏸️  Issues Unchanged: {summary['issues_unchanged']}")
     
     if summary['errors'] > 0:
         print(f"  ⚠️  Errors: {summary['errors']}")
     
     # Show detailed actions if verbose or if there were actions taken
     actions = result['actions']
+    mode = result.get('mode', 'issues')
     
-    if verbose or summary['issues_created'] > 0:
-        if actions['created']:
-            print(f"\n✅ Created Issues:")
-            for item in actions['created']:
-                if result['dry_run']:
-                    print(f"  • {item['title']} ({item['severity']})")
-                else:
-                    print(f"  • {item['title']} ({item['severity']}) - #{item['issue_number']}")
-                    if 'url' in item:
-                        print(f"    {item['url']}")
-    
-    if verbose or summary['issues_reopened'] > 0:
-        if actions['reopened']:
-            print(f"\n🔄 Reopened Issues:")
-            for item in actions['reopened']:
-                if result['dry_run']:
-                    print(f"  • {item['title']} - #{item['issue_number']}")
-                else:
-                    print(f"  • {item['title']} - #{item['issue_number']}")
-                    if 'url' in item:
-                        print(f"    {item['url']}")
-    
-    if verbose or summary['issues_closed'] > 0:
-        if actions['closed']:
-            print(f"\n❌ Closed Issues:")
-            for item in actions['closed']:
-                if result['dry_run']:
-                    print(f"  • {item['title']} - #{item['issue_number']}")
-                else:
-                    print(f"  • {item['title']} - #{item['issue_number']}")
-                    if 'url' in item:
-                        print(f"    {item['url']}")
+    if mode == 'security_advisories':
+        created_count = summary.get('advisories_created', 0)
+        reopened_count = summary.get('advisories_reopened', 0) 
+        closed_count = summary.get('advisories_closed', 0)
+        
+        if verbose or created_count > 0:
+            if actions['created']:
+                print(f"\n✅ Created Security Advisories:")
+                for item in actions['created']:
+                    if result['dry_run']:
+                        print(f"  • {item['title']} ({item['severity']})")
+                    else:
+                        ghsa_id = item.get('ghsa_id', 'N/A')
+                        print(f"  • {item['title']} ({item['severity']}) - {ghsa_id}")
+                        if 'url' in item:
+                            print(f"    {item['url']}")
+        
+        if verbose or reopened_count > 0:
+            if actions['reopened']:
+                print(f"\n🔄 Reopened Security Advisories:")
+                for item in actions['reopened']:
+                    if result['dry_run']:
+                        print(f"  • {item['title']} - {item.get('ghsa_id', 'N/A')}")
+                    else:
+                        print(f"  • {item['title']} - {item.get('ghsa_id', 'N/A')}")
+                        if 'url' in item:
+                            print(f"    {item['url']}")
+        
+        if verbose or closed_count > 0:
+            if actions['closed']:
+                print(f"\n❌ Closed Security Advisories:")
+                for item in actions['closed']:
+                    if result['dry_run']:
+                        print(f"  • {item['title']} - {item.get('ghsa_id', 'N/A')}")
+                    else:
+                        print(f"  • {item['title']} - {item.get('ghsa_id', 'N/A')}")
+                        if 'url' in item:
+                            print(f"    {item['url']}")
+    else:
+        if verbose or summary['issues_created'] > 0:
+            if actions['created']:
+                print(f"\n✅ Created Issues:")
+                for item in actions['created']:
+                    if result['dry_run']:
+                        print(f"  • {item['title']} ({item['severity']})")
+                    else:
+                        print(f"  • {item['title']} ({item['severity']}) - #{item['issue_number']}")
+                        if 'url' in item:
+                            print(f"    {item['url']}")
+        
+        if verbose or summary['issues_reopened'] > 0:
+            if actions['reopened']:
+                print(f"\n🔄 Reopened Issues:")
+                for item in actions['reopened']:
+                    if result['dry_run']:
+                        print(f"  • {item['title']} - #{item['issue_number']}")
+                    else:
+                        print(f"  • {item['title']} - #{item['issue_number']}")
+                        if 'url' in item:
+                            print(f"    {item['url']}")
+        
+        if verbose or summary['issues_closed'] > 0:
+            if actions['closed']:
+                print(f"\n❌ Closed Issues:")
+                for item in actions['closed']:
+                    if result['dry_run']:
+                        print(f"  • {item['title']} - #{item['issue_number']}")
+                    else:
+                        print(f"  • {item['title']} - #{item['issue_number']}")
+                        if 'url' in item:
+                            print(f"    {item['url']}")
     
     if actions['errors']:
         print(f"\n⚠️ Errors:")
@@ -253,7 +310,8 @@ def handle_scan_command(args) -> None:
         print("✅ GitHub connection successful")
         
         # Create issue manager
-        issue_manager = IssueManager(github_client, auto_close=auto_close, dry_run=args.dry_run)
+        use_advisories = getattr(args, 'security_advisory', False)
+        issue_manager = IssueManager(github_client, auto_close=auto_close, dry_run=args.dry_run, use_security_advisories=use_advisories)
         
         # Process scan results
         print(f"📖 Processing TfSec results from {args.tfsec_file}...")
