@@ -96,6 +96,8 @@ Environment Variables:
     test_parser.add_argument('--ghe-base-url', help='GitHub Enterprise base URL (or set GHE_BASE_URL)')
     test_parser.add_argument('--owner', help='GitHub repository owner (DEPRECATED - use --github-repo)')
     test_parser.add_argument('--repo', help='GitHub repository name (DEPRECATED - use --github-repo)')
+    test_parser.add_argument('--debug', '-d', action='store_true',
+                           help='Enable debug output for troubleshooting connection issues')
     
     return parser
 
@@ -299,7 +301,8 @@ def handle_scan_command(args) -> None:
     
     try:
         # Create GitHub client and issue manager
-        github_client = GitHubClient(token, owner, repo, api_base_url, web_base_url)
+        debug_mode = getattr(args, 'debug', False)
+        github_client = GitHubClient(token, owner, repo, api_base_url, web_base_url, debug=debug_mode)
         auto_close = not args.no_auto_close
         
         # Test connection first
@@ -377,7 +380,8 @@ def handle_test_command(args) -> None:
     token, owner, repo, api_base_url, web_base_url = get_github_config(args)
     
     try:
-        github_client = GitHubClient(token, owner, repo, api_base_url, web_base_url)
+        debug_mode = getattr(args, 'debug', False)
+        github_client = GitHubClient(token, owner, repo, api_base_url, web_base_url, debug=debug_mode)
         
         print(f"🔗 Testing connection to {owner}/{repo}...")
         if github_client.test_connection():
