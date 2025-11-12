@@ -10,9 +10,9 @@ long_description = (this_directory / "README.md").read_text() if (this_directory
 
 setup(
     name="tfgitsec",
-    version="1.0.3",
-    author="Your Name",
-    author_email="your.email@example.com",
+    version="1.0.4",
+    author="Frank Smith",
+    author_email="frankie@ibm.com",
     description="Generate GitHub security issues from TfSec scan results",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -52,8 +52,8 @@ setup(
     },
     keywords="terraform tfsec security github issues automation devops",
     project_urls={
-        "Bug Reports": "https://github.com/yourusername/tfgitsec/issues",
-        "Source": "https://github.com/yourusername/tfgitsec",
-        "Documentation": "https://github.com/yourusername/tfgitsec/blob/main/README.md",
+        "Bug Reports": "https://github.com/65156/tfgitsec/issues",
+        "Source": "https://github.com/65156/tfgitsec",
+        "Documentation": "https://github.com/65156/tfgitsec/blob/main/README.md",
     },
 )
