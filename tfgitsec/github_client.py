@@ -15,18 +15,27 @@ class GitHubAPIError(Exception):
 class GitHubClient:
     """Client for interacting with GitHub API"""
     
-    def __init__(self, token: str, repo_owner: str, repo_name: str):
+    def __init__(self, token: str, owner: str, repo: str, api_base_url: str = "https://api.github.com", web_base_url: str = "https://github.com"):
         """Initialize GitHub client
         
         Args:
             token: GitHub Personal Access Token
-            repo_owner: Repository owner/organization
-            repo_name: Repository name
+            owner: Repository owner/organization
+            repo: Repository name
+            api_base_url: GitHub API base URL (for GitHub Enterprise)
+            web_base_url: GitHub web interface base URL (for GitHub Enterprise)
         """
         self.token = token
-        self.repo_owner = repo_owner
-        self.repo_name = repo_name
-        self.base_url = "https://api.github.com"
+        self.owner = owner
+        self.repo = repo
+        self.api_base_url = api_base_url
+        self.web_base_url = web_base_url
+        
+        # Keep legacy attributes for backward compatibility
+        self.repo_owner = owner
+        self.repo_name = repo
+        self.base_url = api_base_url
+        
         self.headers = {
             "Authorization": f"token {token}",
             "Accept": "application/vnd.github.v3+json",
@@ -35,7 +44,7 @@ class GitHubClient:
     
     def _make_request(self, method: str, endpoint: str, data: Optional[Dict] = None) -> Dict[str, Any]:
         """Make a request to the GitHub API"""
-        url = f"{self.base_url}/repos/{self.repo_owner}/{self.repo_name}/{endpoint}"
+        url = f"{self.api_base_url}/repos/{self.owner}/{self.repo}/{endpoint}"
         
         try:
             if method.upper() == "GET":
@@ -191,6 +200,10 @@ class GitHubClient:
             body=issue_body,
             labels=finding.get_github_labels()
         )
+    
+    def get_issue_url(self, issue_number: int) -> str:
+        """Get the web URL for an issue"""
+        return f"{self.web_base_url}/{self.owner}/{self.repo}/issues/{issue_number}"
     
     def find_issue_by_unique_id(self, unique_id: str, issues: Optional[List[GitHubIssue]] = None) -> Optional[GitHubIssue]:
         """Find an existing issue by the unique ID (resource[rule_id])"""

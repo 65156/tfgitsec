@@ -23,25 +23,31 @@ Examples:
   # Basic usage with environment variables
   tfgitsec scan results.json
 
-  # With explicit GitHub configuration
-  tfgitsec scan results.json --token ghp_xxx --owner myorg --repo myrepo
+  # GitHub.com usage
+  tfgitsec scan results.json --github-repo "myorg/myrepo"
+
+  # GitHub Enterprise usage
+  tfgitsec scan results.json --github-repo "IBM-Sports/sports-cloud-sandbox-x81js" --ghe-base-url "https://github.ibm.com"
+
+  # With explicit token
+  tfgitsec scan results.json --token ghp_xxx --github-repo "myorg/myrepo"
 
   # Dry run to see what would happen
-  tfgitsec scan results.json --dry-run
+  tfgitsec scan results.json --github-repo "myorg/myrepo" --dry-run
 
   # Don't auto-close resolved issues
-  tfgitsec scan results.json --no-auto-close
+  tfgitsec scan results.json --github-repo "myorg/myrepo" --no-auto-close
 
   # Just get scan summary without creating issues
   tfgitsec summary results.json
 
   # Test GitHub connection
-  tfgitsec test
+  tfgitsec test --github-repo "myorg/myrepo"
 
 Environment Variables:
   GITHUB_TOKEN       - GitHub personal access token
-  GITHUB_OWNER       - Repository owner/organization
-  GITHUB_REPO        - Repository name
+  GITHUB_REPO        - Repository in owner/repo format
+  GHE_BASE_URL       - GitHub Enterprise base URL (optional)
         """
     )
     
@@ -78,31 +84,63 @@ Environment Variables:
     # Test command
     test_parser = subparsers.add_parser('test', help='Test GitHub API connection')
     test_parser.add_argument('--token', help='GitHub personal access token (or set GITHUB_TOKEN)')
-    test_parser.add_argument('--owner', help='GitHub repository owner (or set GITHUB_OWNER)')
-    test_parser.add_argument('--repo', help='GitHub repository name (or set GITHUB_REPO)')
+    test_parser.add_argument('--github-repo', help='GitHub repository in owner/repo format (or set GITHUB_REPO)')
+    test_parser.add_argument('--ghe-base-url', help='GitHub Enterprise base URL (or set GHE_BASE_URL)')
+    test_parser.add_argument('--owner', help='GitHub repository owner (DEPRECATED - use --github-repo)')
+    test_parser.add_argument('--repo', help='GitHub repository name (DEPRECATED - use --github-repo)')
     
     return parser
 
 
-def get_github_config(args) -> tuple[str, str, str]:
-    """Get GitHub configuration from args or environment variables"""
+def get_github_config(args) -> tuple[str, str, str, str, str]:
+    """Get GitHub configuration from args or environment variables
+    
+    Returns:
+        Tuple of (token, owner, repo, api_base_url, web_base_url)
+    """
     token = args.token or os.getenv('GITHUB_TOKEN')
-    owner = args.owner or os.getenv('GITHUB_OWNER')
-    repo = args.repo or os.getenv('GITHUB_REPO')
+    
+    # Handle new github-repo format
+    github_repo = getattr(args, 'github_repo', None) or os.getenv('GITHUB_REPO')
+    ghe_base_url = getattr(args, 'ghe_base_url', None) or os.getenv('GHE_BASE_URL')
+    
+    # Handle legacy owner/repo format with deprecation warning
+    legacy_owner = getattr(args, 'owner', None) or os.getenv('GITHUB_OWNER')
+    legacy_repo = getattr(args, 'repo', None) or os.getenv('GITHUB_REPO')
     
     if not token:
         print("Error: GitHub token is required. Set GITHUB_TOKEN environment variable or use --token", file=sys.stderr)
         sys.exit(1)
     
-    if not owner:
-        print("Error: GitHub owner is required. Set GITHUB_OWNER environment variable or use --owner", file=sys.stderr)
-        sys.exit(1)
-        
-    if not repo:
-        print("Error: GitHub repository is required. Set GITHUB_REPO environment variable or use --repo", file=sys.stderr)
+    # Determine owner/repo from new or legacy format
+    owner = None
+    repo = None
+    
+    if github_repo:
+        if '/' not in github_repo:
+            print("Error: --github-repo must be in 'owner/repo' format", file=sys.stderr)
+            sys.exit(1)
+        owner, repo = github_repo.split('/', 1)
+    elif legacy_owner and legacy_repo:
+        # Show deprecation warning
+        print("Warning: --owner and --repo are deprecated. Use --github-repo 'owner/repo' instead.", file=sys.stderr)
+        owner = legacy_owner
+        repo = legacy_repo
+    else:
+        print("Error: Repository is required. Use --github-repo 'owner/repo' or set GITHUB_REPO environment variable", file=sys.stderr)
         sys.exit(1)
     
-    return token, owner, repo
+    # Determine API and web base URLs
+    if ghe_base_url:
+        # GitHub Enterprise
+        api_base_url = f"{ghe_base_url.rstrip('/')}/api/v3"
+        web_base_url = ghe_base_url.rstrip('/')
+    else:
+        # GitHub.com
+        api_base_url = "https://api.github.com"
+        web_base_url = "https://github.com"
+    
+    return token, owner, repo, api_base_url, web_base_url
 
 
 def print_scan_results(result: dict, output_format: str = 'text', verbose: bool = False) -> None:
@@ -200,11 +238,11 @@ def handle_scan_command(args) -> None:
         sys.exit(1)
     
     # Get GitHub configuration
-    token, owner, repo = get_github_config(args)
+    token, owner, repo, api_base_url, web_base_url = get_github_config(args)
     
     try:
         # Create GitHub client and issue manager
-        github_client = GitHubClient(token, owner, repo)
+        github_client = GitHubClient(token, owner, repo, api_base_url, web_base_url)
         auto_close = not args.no_auto_close
         
         # Test connection first
@@ -278,10 +316,10 @@ def handle_summary_command(args) -> None:
 
 def handle_test_command(args) -> None:
     """Handle the test command"""
-    token, owner, repo = get_github_config(args)
+    token, owner, repo, api_base_url, web_base_url = get_github_config(args)
     
     try:
-        github_client = GitHubClient(token, owner, repo)
+        github_client = GitHubClient(token, owner, repo, api_base_url, web_base_url)
         
         print(f"🔗 Testing connection to {owner}/{repo}...")
         if github_client.test_connection():
