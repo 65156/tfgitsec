@@ -10,7 +10,7 @@ long_description = (this_directory / "README.md").read_text() if (this_directory
 
 setup(
     name="tfgitsec",
-    version="1.0.4",
+    version="1.0.5",
     author="Frank Smith",
     author_email="frankie@ibm.com",
     description="Generate GitHub security issues from TfSec scan results",
