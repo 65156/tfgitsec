@@ -110,9 +110,9 @@ def get_github_config(args) -> tuple[str, str, str, str, str]:
     """
     token = args.token or os.getenv('GITHUB_TOKEN')
     
-    # Handle new github-repo format
-    github_repo = getattr(args, 'github_repo', None) or os.getenv('GITHUB_REPO')
-    ghe_base_url = getattr(args, 'ghe_base_url', None) or os.getenv('GHE_BASE_URL')
+    # Handle new github-repo format with support for multiple environment variable names
+    github_repo = getattr(args, 'github_repo', None) or os.getenv('GITHUB_REPO') or os.getenv('GITHUB_REPOSITORY')
+    ghe_base_url = getattr(args, 'ghe_base_url', None) or os.getenv('GHE_BASE_URL') or os.getenv('GITHUB_ENTERPRISE_URL')
     
     # Handle legacy owner/repo format with deprecation warning
     legacy_owner = getattr(args, 'owner', None) or os.getenv('GITHUB_OWNER')
@@ -299,9 +299,17 @@ def handle_scan_command(args) -> None:
     # Get GitHub configuration
     token, owner, repo, api_base_url, web_base_url = get_github_config(args)
     
+    # Show configuration when debug is enabled
+    debug_mode = getattr(args, 'debug', False)
+    if debug_mode:
+        print(f"🔧 DEBUG: Configuration:")
+        print(f"  Repository: {owner}/{repo}")
+        print(f"  API Base URL: {api_base_url}")
+        print(f"  Web Base URL: {web_base_url}")
+        print(f"  Token: {'***' if token else 'MISSING'}")
+    
     try:
         # Create GitHub client and issue manager
-        debug_mode = getattr(args, 'debug', False)
         github_client = GitHubClient(token, owner, repo, api_base_url, web_base_url, debug=debug_mode)
         auto_close = not args.no_auto_close
         

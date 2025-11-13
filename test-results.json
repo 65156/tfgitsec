@@ -1,0 +1,54 @@
+{
+  "results": [
+    {
+      "rule_id": "aws-s3-enable-bucket-encryption",
+      "long_id": "aws-s3-enable-bucket-encryption",
+      "rule_description": "S3 Bucket should have encryption enabled",
+      "rule_provider": "aws",
+      "rule_service": "s3", 
+      "impact": "HIGH",
+      "resolution": "Enable encryption for S3 buckets",
+      "links": [
+        "https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket#server_side_encryption_configuration"
+      ],
+      "description": "S3 bucket encryption is not enabled.",
+      "range_annotation": "",
+      "severity": "HIGH", 
+      "status": 0,
+      "resource": "aws_s3_bucket.example",
+      "location": {
+        "filename": "main.tf",
+        "start_line": 10,
+        "end_line": 15
+      }
+    },
+    {
+      "rule_id": "aws-ec2-enforce-http-token-imds",
+      "long_id": "aws-ec2-enforce-http-token-imds", 
+      "rule_description": "EC2 instances should use IMDSv2",
+      "rule_provider": "aws",
+      "rule_service": "ec2",
+      "impact": "MEDIUM",
+      "resolution": "Enable IMDSv2 for EC2 instances",
+      "links": [
+        "https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/instance#metadata_options"
+      ],
+      "description": "EC2 instance is not using IMDSv2.",
+      "range_annotation": "",
+      "severity": "MEDIUM",
+      "status": 0,
+      "resource": "aws_instance.web",
+      "location": {
+        "filename": "main.tf",
+        "start_line": 20,
+        "end_line": 25
+      }
+    }
+  ],
+  "statistics": {
+    "critical": 0,
+    "high": 1, 
+    "medium": 1,
+    "low": 0
+  }
+}
