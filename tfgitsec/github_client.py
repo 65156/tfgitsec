@@ -67,7 +67,8 @@ class GitHubClient:
 
     def _make_request(self, method: str, endpoint: str, data: Optional[Dict] = None) -> Dict[str, Any]:
         """Make a request to the GitHub API"""
-        url = f"{self.api_base_url}/repos/{self.owner}/{self.repo}/{endpoint}"
+        # Strip trailing slash to ensure compatibility with GitHub Enterprise
+        url = f"{self.api_base_url}/repos/{self.owner}/{self.repo}/{endpoint}".rstrip('/')
         
         self._debug_print(f"Making HTTP request:")
         self._debug_print(f"  Method: {method.upper()}")
@@ -304,7 +305,8 @@ class GitHubClient:
     
     def _make_advisory_request(self, method: str, endpoint: str, data: Optional[Dict] = None) -> Dict[str, Any]:
         """Make a request to the GitHub Security Advisory API"""
-        url = f"{self.api_base_url}/repos/{self.owner}/{self.repo}/{endpoint}"
+        # Strip trailing slash to ensure compatibility with GitHub Enterprise
+        url = f"{self.api_base_url}/repos/{self.owner}/{self.repo}/{endpoint}".rstrip('/')
         
         self._debug_print(f"Making Security Advisory HTTP request:")
         self._debug_print(f"  Method: {method.upper()}")
